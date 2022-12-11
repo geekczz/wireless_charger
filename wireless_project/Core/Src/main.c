@@ -36,7 +36,11 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+void stage_0(void);
+void stage_1(void);
+void stage_2(void);
+void stage_3(void);
+void stage_4(void);
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -59,6 +63,11 @@ static void MX_TIM2_Init(void);
 /* USER CODE BEGIN 0 */
 uint16_t ADC_Sample[2];
 uint16_t PWM_SetData = 0;
+uint16_t Light_ADC = 0;
+uint16_t Charge_ADC = 0;
+
+
+uint16_t Global_stage = 0;
 /* USER CODE END 0 */
 
 /**
@@ -102,13 +111,13 @@ int main(void)
 	LL_ADC_StartCalibration(ADC1);
 	while(LL_ADC_IsCalibrationOnGoing(ADC1)!=0);
 	
-	
 	LL_ADC_REG_StartConversionSWStart(ADC1);
+	
 	
 	LL_TIM_CC_EnableChannel(TIM2, LL_TIM_CHANNEL_CH2);
 	LL_TIM_EnableCounter(TIM2);
 	
-	LL_TIM_OC_SetCompareCH2(TIM2, 200);
+	LL_TIM_OC_SetCompareCH2(TIM2, 50);
 	
   /* USER CODE END 2 */
 
@@ -116,12 +125,33 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-		PWM_SetData = ADC_Sample[0];
-		if(PWM_SetData>500)PWM_SetData = 500;
-		LL_TIM_OC_SetCompareCH2(TIM2, PWM_SetData);
+		Light_ADC = ADC_Sample[0];
+		Charge_ADC = ADC_Sample[1];
 		
-		HAL_Delay(100);
+		switch(Global_stage)
+		{
+			case 0: 
+				stage_0();
+				break;
+			case 1:
+				stage_1();
+				break;
+			case 2:
+				stage_2();
+				break;
+			case 3:
+				stage_3();
+				break;
+			case 4:
+				stage_4();
+				break;
+			default:
+				break;
+		}
+		
+		HAL_Delay(10);
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -272,7 +302,7 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 1 */
 
   /* USER CODE END TIM2_Init 1 */
-  TIM_InitStruct.Prescaler = 72;
+  TIM_InitStruct.Prescaler = 8;
   TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
   TIM_InitStruct.Autoreload = 500;
   TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
@@ -335,6 +365,81 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void stage_0(void)
+{
+	//LL_TIM_OC_SetCompareCH2(TIM2, 0);
+	
+	if((Light_ADC > 200) && (Charge_ADC < 2000))
+	{
+		Global_stage = 1;
+	}
+}
+
+void stage_1(void)
+{
+	uint16_t Counter_I = 0;
+	
+	for(Counter_I = 0;Counter_I<220;Counter_I++)
+	{
+		LL_TIM_OC_SetCompareCH2(TIM2, Counter_I*2);
+		HAL_Delay(25);
+	}
+	Global_stage = 2;
+}
+
+void stage_2(void)
+{
+	if(Charge_ADC > 2000) 
+	{
+		LL_TIM_OC_SetCompareCH2(TIM2, 60);
+		Global_stage = 3;
+	}
+}
+
+void stage_3(void)
+{
+	uint16_t Counter_C = 0;
+	
+	if(Charge_ADC > 3000)
+	{
+		Counter_C++;
+		HAL_Delay(50);
+	}
+	else
+	{
+		Counter_C = 0;
+	}
+	
+	if(Counter_C >= 20)Global_stage = 4;
+}
+
+void stage_4(void)
+{
+	uint16_t Counter_I = 0;
+	
+	if(Charge_ADC < 2000)
+	{
+		LL_TIM_OC_SetCompareCH2(TIM2, 60);
+		Global_stage = 2;
+	}
+	else
+	{
+		for(Counter_I = 0;Counter_I<130;Counter_I++)
+		{
+			LL_TIM_OC_SetCompareCH2(TIM2, Counter_I*2);
+			HAL_Delay(25);
+		}
+		
+		for(;Counter_I>0;Counter_I--)
+		{
+			LL_TIM_OC_SetCompareCH2(TIM2, Counter_I*2);
+			HAL_Delay(25);
+		}
+		
+		HAL_Delay(200);
+	}
+	
+}
 /* USER CODE END 4 */
 
 /**
