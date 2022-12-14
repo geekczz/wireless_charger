@@ -66,6 +66,7 @@ uint16_t PWM_SetData = 0;
 uint16_t Light_ADC = 0;
 uint16_t Charge_ADC = 0;
 
+uint16_t Counter_Keep_Alive = 0;
 
 uint16_t Global_stage = 0;
 /* USER CODE END 0 */
@@ -117,7 +118,11 @@ int main(void)
 	LL_TIM_CC_EnableChannel(TIM2, LL_TIM_CHANNEL_CH2);
 	LL_TIM_EnableCounter(TIM2);
 	
-	LL_TIM_OC_SetCompareCH2(TIM2, 50);
+	LL_TIM_OC_SetCompareCH2(TIM2, 0);
+	
+	LL_GPIO_ResetOutputPin(Keep_Alive_GPIO_Port, Keep_Alive_Pin);
+	HAL_Delay(90);
+	LL_GPIO_SetOutputPin(Keep_Alive_GPIO_Port, Keep_Alive_Pin);
 	
   /* USER CODE END 2 */
 
@@ -150,6 +155,17 @@ int main(void)
 		}
 		
 		HAL_Delay(10);
+		
+		Counter_Keep_Alive ++;
+		if(Counter_Keep_Alive > 800)
+		{
+			Counter_Keep_Alive = 0;
+			LL_GPIO_ResetOutputPin(Keep_Alive_GPIO_Port, Keep_Alive_Pin);
+			HAL_Delay(90);
+			LL_GPIO_SetOutputPin(Keep_Alive_GPIO_Port, Keep_Alive_Pin);
+		}
+		
+		
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -304,7 +320,7 @@ static void MX_TIM2_Init(void)
   /* USER CODE END TIM2_Init 1 */
   TIM_InitStruct.Prescaler = 8;
   TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
-  TIM_InitStruct.Autoreload = 500;
+  TIM_InitStruct.Autoreload = 1500;
   TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
   LL_TIM_Init(TIM2, &TIM_InitStruct);
   LL_TIM_EnableARRPreload(TIM2);
@@ -356,20 +372,47 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_GPIOD);
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_GPIOA);
 
+  /**/
+  LL_GPIO_ResetOutputPin(Keep_Alive_GPIO_Port, Keep_Alive_Pin);
+
+  /**/
+  GPIO_InitStruct.Pin = Keep_Alive_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  LL_GPIO_Init(Keep_Alive_GPIO_Port, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
 
+uint16_t indexWave[] = {
+    1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 4, 4, 5, 5,
+    6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 22,
+    25, 28, 32, 36, 41, 47, 53, 61, 69, 79,
+    89, 102, 116, 131, 149, 170, 193, 219,
+    250, 284, 323, 367, 417, 474, 539, 613,
+    697, 792, 901, 1024, 1024, 901, 792, 697,
+    613, 539, 474, 417, 367, 323, 284, 250,
+    219, 193, 170, 149, 131, 116, 102, 89,
+    79, 69, 61, 53, 47, 41, 36, 32, 28, 25,
+    22, 19, 17, 15, 13, 11, 10, 9, 8, 7, 6,
+    5, 5, 4, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1
+};
+
+uint16_t POINT_NUM = sizeof(indexWave)/sizeof(indexWave[0]);
+
 void stage_0(void)
 {
-	//LL_TIM_OC_SetCompareCH2(TIM2, 0);
+	LL_TIM_OC_SetCompareCH2(TIM2, 0);
 	
-	if((Light_ADC > 200) && (Charge_ADC < 2000))
+	if(Light_ADC > 1000)
 	{
 		Global_stage = 1;
 	}
@@ -379,25 +422,27 @@ void stage_1(void)
 {
 	uint16_t Counter_I = 0;
 	
-	for(Counter_I = 0;Counter_I<220;Counter_I++)
+	for(Counter_I = 0;Counter_I<(POINT_NUM/2);Counter_I++)
 	{
-		LL_TIM_OC_SetCompareCH2(TIM2, Counter_I*2);
-		HAL_Delay(25);
+		LL_TIM_OC_SetCompareCH2(TIM2, indexWave[Counter_I]);
+		HAL_Delay(70);
 	}
 	Global_stage = 2;
 }
 
 uint16_t Counter_C = 0;
 uint16_t Counter_L = 0;
+
+uint16_t Counter_TimeOut = 0;
 void stage_2(void)
 {
 	Counter_C = 0;
 	if(Charge_ADC > 2000) 
 	{
-		LL_TIM_OC_SetCompareCH2(TIM2, 60);
+		LL_TIM_OC_SetCompareCH2(TIM2, 20);
 		Global_stage = 3;
 	}
-	else if(Light_ADC < 200)
+	else if(Light_ADC < 1000)
 	{
 		Counter_L ++;
 		if(Counter_L > 500)
@@ -413,46 +458,37 @@ void stage_3(void)
 	if(Charge_ADC > 3000)
 	{
 		Counter_C++;
-		HAL_Delay(50);
 	}
 	else
 	{
 		Counter_C = 0;
+		Counter_TimeOut ++;
 	}
 	
-	if(Counter_C >= 20)Global_stage = 4;
+	if(Counter_C >= 100)Global_stage = 4;
+	if(Counter_TimeOut >= 500)Global_stage = 2;
 }
 
+
+uint16_t Breath_Counter = 0;
 void stage_4(void)
 {
-	uint16_t Counter_I = 0;
-	
-	Counter_C = 0;
 	if(Charge_ADC < 2000)
 	{
-		LL_TIM_OC_SetCompareCH2(TIM2, 60);
+		LL_TIM_OC_SetCompareCH2(TIM2, 20);
 		Global_stage = 2;
 	}
 	else if(Charge_ADC < 3000)
 	{
-		LL_TIM_OC_SetCompareCH2(TIM2, 60);
+		LL_TIM_OC_SetCompareCH2(TIM2, 20);
 		Global_stage = 3;
 	}
 	else
 	{
-		for(Counter_I = 0;Counter_I<130;Counter_I++)
-		{
-			LL_TIM_OC_SetCompareCH2(TIM2, Counter_I*2);
-			HAL_Delay(25);
-		}
-		
-		for(;Counter_I>0;Counter_I--)
-		{
-			LL_TIM_OC_SetCompareCH2(TIM2, Counter_I*2);
-			HAL_Delay(25);
-		}
-		
-		HAL_Delay(200);
+		LL_TIM_OC_SetCompareCH2(TIM2, indexWave[Breath_Counter]);
+		HAL_Delay(10);
+		Breath_Counter ++;
+		if(Breath_Counter > POINT_NUM)Breath_Counter = 0;
 	}
 	
 }

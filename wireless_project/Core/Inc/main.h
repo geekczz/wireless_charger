@@ -75,6 +75,8 @@ void Error_Handler(void);
 #define Light_Control_GPIO_Port GPIOA
 #define Charge_Sense_Pin LL_GPIO_PIN_2
 #define Charge_Sense_GPIO_Port GPIOA
+#define Keep_Alive_Pin LL_GPIO_PIN_7
+#define Keep_Alive_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
