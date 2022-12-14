@@ -168,7 +168,7 @@
         <Ww>
           <count>3</count>
           <WinNumber>1</WinNumber>
-          <ItemText>Counter_C</ItemText>
+          <ItemText>Counter_C,0x0A</ItemText>
         </Ww>
       </WatchWindow1>
       <Tracepoint>

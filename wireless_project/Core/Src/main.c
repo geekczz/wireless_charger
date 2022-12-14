@@ -387,19 +387,29 @@ void stage_1(void)
 	Global_stage = 2;
 }
 
+uint16_t Counter_C = 0;
+uint16_t Counter_L = 0;
 void stage_2(void)
 {
+	Counter_C = 0;
 	if(Charge_ADC > 2000) 
 	{
 		LL_TIM_OC_SetCompareCH2(TIM2, 60);
 		Global_stage = 3;
 	}
+	else if(Light_ADC < 200)
+	{
+		Counter_L ++;
+		if(Counter_L > 500)
+		{
+			Counter_L = 0;
+			Global_stage = 0;
+		}
+	}
 }
 
 void stage_3(void)
 {
-	uint16_t Counter_C = 0;
-	
 	if(Charge_ADC > 3000)
 	{
 		Counter_C++;
@@ -417,10 +427,16 @@ void stage_4(void)
 {
 	uint16_t Counter_I = 0;
 	
+	Counter_C = 0;
 	if(Charge_ADC < 2000)
 	{
 		LL_TIM_OC_SetCompareCH2(TIM2, 60);
 		Global_stage = 2;
+	}
+	else if(Charge_ADC < 3000)
+	{
+		LL_TIM_OC_SetCompareCH2(TIM2, 60);
+		Global_stage = 3;
 	}
 	else
 	{
